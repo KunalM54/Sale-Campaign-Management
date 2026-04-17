@@ -1,0 +1,18 @@
+# Maven build output
+target/
+
+# IDE files
+*.iml
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Spring Boot logs
+*.log
+logs/
+
+# Database credentials (important!)
+src/main/resources/application.properties
