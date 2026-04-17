@@ -4,7 +4,6 @@ target/
 # IDE files
 *.iml
 .idea/
-.vscode/
 
 # OS files
 .DS_Store
@@ -16,3 +15,5 @@ logs/
 
 # Database credentials (important!)
 src/main/resources/application.properties
+config.bat
+node_modules

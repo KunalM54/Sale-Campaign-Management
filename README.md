@@ -1,166 +1,177 @@
-# Project Title
-Sale Campaign Management
+# Sale Campaign Management
+
+A Spring Boot REST API for managing products, sale campaigns with discounts, and scheduled price adjustments with history tracking.
 
 ## Overview
-Sale Campaign Management is a Spring Boot backend project to manage products and run date-based discount campaigns.  
-It supports campaign creation, automatic campaign start/end processing, product price updates, and price history tracking.
+
+This application manages product inventory with sale campaign functionality. It allows creating campaigns with product-specific discounts, automatically applies and reverts discounts based on campaign start/end dates via scheduled jobs, and maintains price change history for all products.
 
 ## Features
-- Product management APIs (`saveAll`, `findAll`, paginated fetch).
-- Campaign creation with multiple product discounts in one request.
-- Campaign status lifecycle: `UPCOMING` → `CURRENT` → `PAST`.
-- Scheduler-based campaign processing (runs every 20 seconds).
-- Automatic discount apply on campaign start date.
-- Automatic discount revert on campaign end date.
-- Price history tracking whenever prices change due to campaign actions.
-- Pagination support for product listing.
+
+* Product Management
+* Sale Campaign Creation
+* Campaign Discount Application
+* Scheduled Campaign Activation/Deactivation
+* Price History Tracking
+* Pagination Support
+* Batch Insert Operations
 
 ## Tech Stack
-- Java 17
-- Spring Boot
-- Spring Web MVC
-- Spring Data JPA
-- Spring Scheduling (`@EnableScheduling`, `@Scheduled`)
-- MySQL Connector/J
-- Maven
+
+* Java 17
+* Spring Boot 4.0.4
+* Spring Data JPA
+* Spring Web MVC
+* MySQL
 
 ## System Design / How It Works
-1. Products are created and stored in the `product` table.
-2. Campaign is created through `/products/createCampaign` with:
-   - `title`
-   - `startDate`
-   - `endDate`
-   - list of `{ productId, discount }`
-3. Campaign is saved with initial status `UPCOMING`.
-4. Scheduler (`CampaignScheduler`) runs every 20 seconds:
-   - Finds campaigns with today as `startDate` and status `UPCOMING`, then applies discount.
-   - Finds campaigns with today as `endDate` and status `CURRENT`, then reverts discount.
-5. While applying discount:
-   - product discount value is increased
-   - current price is recalculated
-   - price change is stored in `price_history`
-   - campaign status becomes `CURRENT`
-6. While reverting discount:
-   - product discount value is reduced
-   - current price is recalculated back
-   - price change is stored in `price_history`
-   - campaign status becomes `PAST`
+
+1. Products are saved with title, MRP, currentPrice, discount, and inventory
+2. Campaigns are created with title, startDate, endDate, and list of product discounts
+3. Scheduler runs every 20 seconds to check campaign dates
+4. On campaign start date: applies discount to products, updates currentPrice, records price history, sets status to CURRENT
+5. On campaign end date: reverts discount from products, updates currentPrice, records price history, sets status to PAST
+6. Price calculation: newPrice = oldPrice × (1 - discount/100)
+7. Missing products in campaign creation are collected and reported
 
 ## Project Structure
+
 ```text
-src/main/java/com/sale_compaign_project/Sale/Compaign/Management
+com.example.salecampaignmanagement
+├── SaleCampaignManagementApplication.java
+├── ENUM
+│   └── CampaignStatus.java
 ├── Controller
-│   └── ProductController
+│   └── ProductController.java
 ├── Service
-│   └── ProductService
+│   └── ProductService.java
 ├── Scheduler
-│   └── CampaignScheduler
-├── Model
-│   ├── Product
-│   ├── Campaign
-│   ├── CampaignDiscount
-│   └── PriceHistory
+│   └── CampaignScheduler.java
 ├── Repository
-│   ├── ProductRepo
-│   ├── CampaignRepo
-│   ├── CampaignDiscountRepo
-│   └── PriceHistoryRepo
-├── DTO
-│   ├── CampaignDTO
-│   ├── DiscountDTO
-│   └── PaginationDTO
-└── ENUM
-    └── CampaignStatus
+│   ├── ProductRepo.java
+│   ├── CampaignRepo.java
+│   ├── CampaignDiscountRepo.java
+│   └── PriceHistoryRepo.java
+├── Model
+│   ├── Product.java
+│   ├── Campaign.java
+│   ├── CampaignDiscount.java
+│   └── PriceHistory.java
+└── DTO
+    ├── CampaignDTO.java
+    ├── DiscountDTO.java
+    └── PaginationDTO.java
 ```
 
 ## Setup & Installation
-1. Install:
-   - JDK 17
-   - Maven
-   - MySQL
-2. Clone/open the project.
-3. Configure datasource properties for your local MySQL.
-4. Build and run:
-   ```bash
-   mvn clean install
-   mvn spring-boot:run
+
+1. Ensure Java 17 and Maven are installed
+2. Create MySQL database
+3. Configure `src/main/resources/application.properties`:
+   ```properties
+   spring.datasource.url=jdbc:mysql://localhost:3306/your_database_name
+   spring.datasource.username=your_username
+   spring.datasource.password=your_password
+   spring.jpa.hibernate.ddl-auto=update
    ```
-5. Server starts with default Spring Boot port unless configured otherwise.
+4. Run `mvn spring-boot:run`
 
 ## API Endpoints
-Base path: `/products`
 
-1. `POST /products/saveAll`  
-   Save multiple products.
+Base path: `http://localhost:8080/products`
 
-2. `GET /products/findAll`  
-   Fetch all products.
+### 1) Save Products
 
-3. `GET /products`  
-   Paginated products using Spring `Pageable` query params (`page`, `size`, `sort`).
+* **POST** `/products/saveAll`
+* **Request Body**: Array of product objects
 
-4. `POST /products/createCampaign`  
-   Create campaign with discounts.
+```http
+POST /products/saveAll
+[{"title":"Laptop","mrp":50000,"currentPrice":45000,"discount":10,"inventory":100}]
+```
 
-### Campaign Request Body (`/products/createCampaign`)
-```json
+### 2) Get All Products
+
+* **GET** `/products/findAll`
+
+```http
+GET /products/findAll
+```
+
+### 3) Get Products by Page
+
+* **GET** `/products`
+* **Query Params**: page, size
+
+```http
+GET /products?page=0&size=10
+```
+
+### 4) Create Campaign
+
+* **POST** `/products/createCampaign`
+* **Request Body**: Campaign details
+
+```http
+POST /products/createCampaign
 {
-  "title": "Festival Sale",
-  "startDate": "2026-04-10",
-  "endDate": "2026-04-15",
-  "campaignDiscount": [
-    { "productId": 1, "discount": 10 },
-    { "productId": 2, "discount": 15 }
+  "title":"Summer Sale",
+  "startDate":"2026-04-20",
+  "endDate":"2026-04-30",
+  "campaignDiscount":[
+    {"productId":1,"discount":15}
   ]
 }
 ```
 
 ## Database Schema
-### 1) `product`
-- `product_id` (PK)
-- `title`
-- `mrp`
-- `current_price`
-- `discount`
-- `inventory`
 
-### 2) `compaign`
-- `compaign_id` (PK)
-- `start_date`
-- `end_date`
-- `title`
-- `status` (`UPCOMING`, `CURRENT`, `PAST`)
+### `product`
 
-### 3) `compaign_discount`
-- `discount_id` (PK)
-- `compaign_id` (FK → `compaign.compaign_id`)
-- `product_id` (FK → `product.product_id`)
-- `discount`
+* `product_id` (PK)
+* `title`
+* `mrp`
+* `currentPrice`
+* `discount`
+* `inventory`
 
-### 4) `price_history`
-- `id` (PK)
-- `product_id` (FK → `product.product_id`)
-- `old_price`
-- `new_price`
-- `changed_at`
+### `compaign`
 
-### Relationships
-- One `Campaign` → Many `CampaignDiscount`
-- One `Product` → Many `CampaignDiscount`
-- One `Product` → Many `PriceHistory`
+* `compaign_id` (PK)
+* `startDate`
+* `endDate`
+* `title`
+* `status`
+
+### `compaign_discount`
+
+* `discountId` (PK)
+* `compaign_id` (FK -> compaign)
+* `product_id` (FK -> product)
+* `discount`
+
+### `price_history`
+
+* `id` (PK)
+* `product_id` (FK -> product)
+* `oldPrice`
+* `newPrice`
+* `changedAt`
 
 ## Configuration Notes
-- Scheduling is enabled in application class using `@EnableScheduling`.
-- Campaign scheduler cron is currently:
-  - `*/20 * * * * *` (every 20 seconds).
-- Campaign queries are date-based and status-based:
-  - start: `start_date = today` and status `UPCOMING`
-  - end: `end_date = today` and status `CURRENT`
-- MySQL dependency is included in `pom.xml`.
+
+* `spring.application.name=sale-campaign-management`
+* `spring.datasource.url=jdbc:mysql://localhost:3306/your_database_name`
+* `spring.datasource.username=your_username`
+* `spring.datasource.password=your_password`
+* `spring.jpa.hibernate.ddl-auto=update`
+* `spring.jpa.properties.hibernate.jdbc.batch_size=50`
+* `spring.jpa.properties.hibernate.order_inserts=true`
+* `spring.jpa.properties.hibernate.order_updates=true`
 
 ## Future Improvements
-- Add request validation for campaign dates and discount ranges.
-- Add global exception handling for cleaner API error responses.
-- Add API for campaign details/history retrieval.
-- Add unit/integration test coverage.
-- Externalize scheduler cron and other runtime settings into configuration.
+
+* Add authentication and authorization
+* Implement campaign status filtering
+* Add price history retrieval endpoint
+* Support multiple discount types (percentage, fixed)
